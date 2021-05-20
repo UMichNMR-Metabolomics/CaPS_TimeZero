@@ -1,0 +1,200 @@
+---
+title: "JackKnifed Z Stat Estimates"
+output: html_notebook
+---
+
+
+```{r PackageLoad}
+library(tidyverse)
+library(ggpubr)
+```
+
+```{r LoadData}
+#load csv of acylcarnitine metabolomics data
+df = read.csv('Merged.csv')
+
+#load csv of NMR data
+df_nmr = read.csv('df_nmr.csv')
+
+#for grid search we only consider 18 g and placebo.
+#filter the rest
+df %>% 
+  filter(Dose_raw == 18 | Dose_raw == 0) -> df
+
+df_nmr %>%
+  filter(dose_raw == 18 | dose_raw == 0) %>%
+  mutate(carntx = as.factor(case_when(
+    dose_indicator == 0 ~ "Placebo",
+    dose_indicator == 1 ~ "CarnTx"))) -> df_nmr
+```
+
+```{r}
+#this function takes a metabolomics dataframe and a list of metabolites
+#for every metabolite find unique concentration values 
+#return a dataframe of the metabolite and the unique threshold concentration
+threshold = function (df, metabolite){
+  df %>% 
+    dplyr::select(metabolite) %>%
+    distinct((!!rlang::sym(metabolite))) %>%
+    pull() %>% sort() -> vals
+  
+  tibble(metabolite, vals)
+}
+```
+
+```{r}
+#get the list of acylcarnitine metabolites
+#this will be an argument when the threshold fxn above is called
+acylcarnitines = colnames(df[,3:26])
+
+nmr_metabs = colnames(df_nmr[,2:28])
+```
+
+```{r}
+#call the threshold function on each metabolite individually using lapply
+thres_results = lapply(acylcarnitines, 
+              function(x) 
+                threshold(df = df,
+                      metabolite = x))
+
+thres_results_nmr = lapply(nmr_metabs, 
+              function(x) 
+                threshold(df = df_nmr,
+                      metabolite = x))
+
+#bind the results back in to one dataframe
+bind_rows(thres_results) -> thres_results_tib
+
+bind_rows(thres_results_nmr) -> thres_results_tib_nmr
+```
+
+```{r}
+#this function will be called within the function below
+#it takes a dataframe and a list of patients as arguements
+#it will calculate a JackKnifed Mean and Standard Error of the Z-statistic from a two sample proportion
+LOOCV = function (df, patient){
+  #remove one patient at a time
+  df %>%
+    filter(studyid != patient) -> df_LOO
+  
+  #cross tab the mortality
+  table(df_LOO$carntx, df_LOO$died_90_day) -> tab
+
+  #determine the proportion and sample size in treated and placebo
+  #calculate pooled proportion 
+  p2 = tab[3] / (tab[1]+tab[3])
+  p1 = tab[4] / (tab[2]+tab[4])
+  
+  n2 = tab[1]+tab[3]
+  n1 = tab[2]+tab[4]
+  
+  p_star = (tab[3] + tab [4]) / sum(tab)
+  
+  #calc Z statistic using pooled standard error
+  z = (p1-p2) / sqrt(p_star * (1-p_star) * (1/n1 + 1/n2))
+  
+  #store z-stat
+  tibble(z, patient, p1, p2, n1, n2) %>% rename(Patient_LO = patient)
+  
+}
+```
+
+```{r}
+test_fxn <- function (df, metabolite, threshold) {
+  
+  #consider only the patients above a metabolite thresehold
+  df %>% 
+    dplyr::filter((!!rlang::sym(metabolite)) > threshold) -> df_filt
+
+
+  #cross tab the mortality
+  table(df_filt$carntx, df_filt$died_90_day) -> tab
+  
+  if (length(tab) == 4){
+
+  #pull the list of patient IDs and store 
+  df_filt %>% 
+    dplyr::select(studyid) %>% 
+    pull() -> list_id
+
+  
+  #call the Leave One Out function on the filtered data
+  #this will calculate a tibble of z values with each patient sequentially left out
+  res = lapply(list_id, 
+               function(x) 
+                 LOOCV(df = df_filt,
+                       patient = x))
+  
+  #bind the results into something useable
+  bind_rows(res) -> results_tib
+  
+  
+  #get z vals
+  Z_val = results_tib %>% pull(z)
+  
+  #calculate mean and standard error of z
+  
+  Z_Mean = mean(Z_val)
+  Z_StdError = sqrt ( (length(Z_val) -1) / length(Z_val) * sum( (Z_val - mean(Z_val) )^2 ))
+  
+  tibble(metabolite, threshold, Z_Mean, Z_StdError)}
+  
+  else{}
+  
+}
+```
+
+```{r}
+# c2 <- results_tib %>% 
+#   filter(metabolite == 't0c2carnitine') %>% 
+#   dplyr::mutate(vals = round(vals, digits = 3))
+
+mapply(function(x, y) 
+  test_fxn(df = df, metabolite = x, threshold = y),
+    thres_results_tib$metabolite, thres_results_tib$vals, 
+    SIMPLIFY = FALSE ) -> d_ac
+
+mapply(function(x, y) 
+  test_fxn(df = df_nmr, metabolite = x, threshold = y),
+    thres_results_tib_nmr$metabolite, thres_results_tib_nmr$vals, 
+    SIMPLIFY = FALSE ) -> d_nmr
+
+#convert mapply results to tibbles
+bind_rows(d_ac) -> ac_res
+bind_rows(d_nmr) -> nmr_res
+
+#
+bind_rows(ac_res, nmr_res) -> final_df
+
+```
+
+```{r}
+library('flextable')
+library()
+
+final_df %>% 
+  drop_na(Z_Mean) %>% 
+  group_by(metabolite) %>%
+  filter(Z_Mean == max(Z_Mean)) %>%
+  arrange(desc(Z_Mean)) %>% 
+  mutate(CI_lower = Z_Mean - 1.96 * Z_StdError,
+         CI_higher = Z_Mean + 1.96 * Z_StdError) %>% 
+  mutate(across(where(is.numeric), round, 2)) %>% 
+  unite(col = "95% CI", 
+        CI_lower:CI_higher, sep = "–") %>% 
+  rename('Maximum Z–Statistic' = Z_Mean,
+         'Metabolite Predictor' = metabolite) %>%
+  select(-c(threshold, Z_StdError)) %>%
+  flextable() %>%  
+  align(j=2:3, align = "center", part = 'all') %>% 
+  bold(bold = TRUE, part = 'header') %>%
+  autofit() -> ft1
+
+tf <- tempfile(fileext = ".docx")
+save_as_docx(ft1, path = tf)
+```
+
+
+
+
+

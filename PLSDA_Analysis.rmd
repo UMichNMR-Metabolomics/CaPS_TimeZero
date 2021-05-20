@@ -1,0 +1,196 @@
+---
+title: "Time-Zero PLSDA Analysis"
+author: "Teddy Jennaro"
+date: "08/25/2020"
+output: html_notebook
+  # html_document:
+  #     df_print: paged
+  #     toc: true
+  #     toc_depth: 4
+  #     toc_float:
+  #       collapsed: no
+  #       smooth_scroll: yes
+
+---
+
+#**Introduction**
+This is an analysis to explore the underlying data structure and visualize the metabolic heterogeneity in RACE patients at baseline. Specifically, it is intended to help rationalize why we sought a metabolic subgroup that responds preferentially well to L-carnitine supplementation.
+
+
+***
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library('ggpubr')
+library('tidyverse')
+library('knitr')
+library('RColorBrewer')
+library('factoextra')
+library('mixOmics')
+library('pander')
+
+set.seed(12345)
+```
+
+```{r echo = FALSE}
+#load data
+nmr_metabolites_matrix_scaled = read.csv('nmr_metabolites_scaled_matrix.csv')
+nmr_metabolite_names = colnames(nmr_metabolites_matrix_scaled)[1:27]
+
+ac_metabolites_matrix_scaled = read.csv('ac_metabolites_scaled_matrix.csv')
+ac_metabolites = colnames(ac_metabolites_matrix_scaled)[1:24]
+```
+
+```{r echo = FALSE}
+#Do conversions to factor variables for death and dose
+nmr_metabolites_matrix_scaled = nmr_metabolites_matrix_scaled %>%
+  mutate(died_90_day=factor(died_90_day), dose_raw=factor(dose_raw))
+
+ac_metabolites_matrix_scaled = ac_metabolites_matrix_scaled %>%
+  mutate(died_90_day=factor(died_90_day), dose_raw=factor(dose_raw))
+```
+
+```{r echo = FALSE}
+ac_metabolites_matrix_scaled$Dose_char =recode(
+  ac_metabolites_matrix_scaled$dose_raw,
+    `0`='Placebo',
+    `6`='6 g',
+    `12`='12 g',
+    `18`='18 g')
+
+ac_metabolites_matrix_scaled$died_90_day_char = recode(
+  ac_metabolites_matrix_scaled$died_90_day,
+    `0`="Survivor",
+    `1`="Non-Survivor"
+)
+
+nmr_metabolites_matrix_scaled$Dose_char =recode(
+  nmr_metabolites_matrix_scaled$dose_raw,
+    `0`='Placebo',
+    `6`='6 g',
+    `12`='12 g',
+    `18`='18 g')
+
+nmr_metabolites_matrix_scaled$died_90_day_char = recode(
+  nmr_metabolites_matrix_scaled$died_90_day,
+    `0`="Survivor",
+    `1`="Non-Survivor"
+)
+```
+
+#**PLSDA Plots**
+
+##*By Treatment*
+```{r echo = FALSE}
+ac_plsda_mix = plsda(X = ac_metabolites_matrix_scaled[,1:24], 
+                     Y = ac_metabolites_matrix_scaled$Dose_char,
+                     ncomp = 8, scale = FALSE )
+
+
+ac_plsda_df = data.frame(ac_plsda_mix$variates$X, ac_plsda_mix$Y)
+
+comp1_var = as.numeric(round(ac_plsda_mix$explained_variance$X["comp 1"],2))
+comp2_var = as.numeric(round(ac_plsda_mix$explained_variance$X["comp 2"],2))
+
+
+p1 = ggplot(data = ac_plsda_df, 
+           aes(x = comp1, y = comp2, color = ac_plsda_mix.Y)) + 
+  geom_point() + 
+  scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7")) +
+  stat_ellipse(type = 'norm', geom = 'polygon', alpha = 0.05) + 
+  theme_classic() + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_vline(xintercept = 0, linetype = 'dashed') + 
+  labs(color = "Treatment",
+       x = paste('Component 1',"(",100*comp1_var,"%",")"), 
+       y = paste('Component 2',"(",100*comp2_var,"%",")"),
+       title = 'Acylcarnitine PLS-DA')
+  
+p1
+
+
+```
+
+```{r echo = FALSE}
+nmr_plsda_mix = plsda(X = nmr_metabolites_matrix_scaled[,1:27], 
+                     Y = nmr_metabolites_matrix_scaled$Dose_char,
+                     ncomp = 8, scale = FALSE )
+
+
+nmr_plsda_df = data.frame(nmr_plsda_mix$variates$X, nmr_plsda_mix$Y)
+
+comp1_var_nmr = as.numeric(round(nmr_plsda_mix$explained_variance$X["comp 1"],2))
+comp2_var_nmr = as.numeric(round(nmr_plsda_mix$explained_variance$X["comp 2"],2))
+
+
+p2 = ggplot(data = nmr_plsda_df, 
+           aes(x = comp1, y = comp2, color = nmr_plsda_mix.Y)) + 
+  geom_point() + 
+  scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7")) +
+  stat_ellipse(type = 'norm', geom = 'polygon', alpha = 0.05) + 
+  theme_classic() + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_vline(xintercept = 0, linetype = 'dashed') + 
+  labs(color = "Treatment",
+       x = paste('Component 1',"(",100*comp1_var_nmr,"%",")"), 
+       y = paste('Component 2',"(",100*comp2_var_nmr,"%",")"),
+       title = 'NMR PLS-DA')
+p2 
+```
+##*By Sex*
+```{r echo=FALSE}
+ac_plsda_mix_sex = plsda(X = ac_metabolites_matrix_scaled[,1:24], 
+                     Y = ac_metabolites_matrix_scaled$sex,
+                     ncomp = 8, scale = FALSE )
+
+ac_plsda_df_sex = data.frame(ac_plsda_mix_sex$variates$X, ac_plsda_mix_sex$Y)
+
+comp1_var_sex = as.numeric(round(ac_plsda_mix_sex$explained_variance$X["comp 1"],2))
+comp2_var_sex = as.numeric(round(ac_plsda_mix_sex$explained_variance$X["comp 2"],2))
+
+
+s1 = ggplot(data = ac_plsda_df_sex, 
+           aes(x = comp1, y = comp2, color = ac_plsda_mix_sex.Y)) + 
+  geom_point() + 
+  scale_color_manual(labels = c("Male", "Female"),
+                     values = c("#0072B2", "#D55E00")) +
+  stat_ellipse(type = 'norm', geom = 'polygon', alpha = 0.05) + 
+  theme_classic() + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_vline(xintercept = 0, linetype = 'dashed') + 
+  labs(color = "Sex",
+       x = paste('Component 1',"(",100*comp1_var_sex,"%",")"), 
+       y = paste('Component 2',"(",100*comp2_var_sex,"%",")"),
+       title = 'Acylcarnitine PLS-DA by Sex')
+
+s1
+```
+
+```{r echo = FALSE}
+nmr_plsda_mix_sex = plsda(X = nmr_metabolites_matrix_scaled[,1:27], 
+                     Y = nmr_metabolites_matrix_scaled$sex,
+                     ncomp = 8, scale = FALSE )
+
+
+nmr_plsda_df_sex = data.frame(nmr_plsda_mix_sex$variates$X, nmr_plsda_mix_sex$Y)
+
+comp1_var_nmr_sex = as.numeric(round(nmr_plsda_mix_sex$explained_variance$X["comp 1"],2))
+comp2_var_nmr_sex = as.numeric(round(nmr_plsda_mix_sex$explained_variance$X["comp 2"],2))
+
+
+s2 = ggplot(data = nmr_plsda_df_sex, 
+           aes(x = comp1, y = comp2, color = nmr_plsda_mix_sex.Y)) + 
+  geom_point() + 
+  scale_color_manual(labels = c("Male", "Female"),
+                     values = c("#0072B2", "#D55E00")) +
+  stat_ellipse(type = 'norm', geom = 'polygon', alpha = 0.05) + 
+  theme_classic() + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_vline(xintercept = 0, linetype = 'dashed') + 
+  labs(color = "Treatment",
+       x = paste('Component 1',"(",100*comp1_var_nmr_sex,"%",")"), 
+       y = paste('Component 2',"(",100*comp2_var_nmr_sex,"%",")"),
+       title = 'NMR PLS-DA by Sex')
+
+s2
+```
+
