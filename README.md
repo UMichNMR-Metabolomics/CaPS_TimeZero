@@ -3,7 +3,7 @@
 
 The purpose of this repository is to provide public access to the metabolomics data and R scripts in the following publication: 
 
-Puskarich MA, Jennaro TS, Gillies CE, et al. Pharmacometabolomics Identifies Candidate Predictor Metabolites of an L-carnitine Treatment Mortality Benefit in Septic Shock. medRxiv. Published online 2021. doi:10.1101/2021.01.28.21250687
+Puskarich MA, Jennaro TS, Gillies CE, Evans CR, Karnovsky A, McHugh CE, Flott TL, Jones AE, Stringer KA; RACE Investigators. Pharmacometabolomics identifies candidate predictor metabolites of an L-carnitine treatment mortality benefit in septic shock. Clin Transl Sci. 2021 Nov;14(6):2288-2299. doi: 10.1111/cts.13088. Epub 2021 Jul 3. PMID: 34216108; PMCID: PMC8604225.
 
 #### **Description of files included in the analysis:**
 
@@ -24,7 +24,7 @@ Puskarich MA, Jennaro TS, Gillies CE, et al. Pharmacometabolomics Identifies Can
 
 #### **External Links:**
 
-* Link to published manuscript: *will be posted upon final publication*
+* Link to published manuscript: https://ascpt.onlinelibrary.wiley.com/doi/full/10.1111/cts.13088
 
 * Link to preprint: https://www.medrxiv.org/content/10.1101/2021.01.28.21250687v1
 
@@ -32,7 +32,7 @@ Puskarich MA, Jennaro TS, Gillies CE, et al. Pharmacometabolomics Identifies Can
 
 * Link to survival data: https://deepblue.lib.umich.edu/data/concern/data_sets/gq67jr455
 
-* Link to metabolomics spectra: *will be posted to NIH Metabolomics Workbench upon completion of future projects*
+* Link to metabolomics spectra: https://www.metabolomicsworkbench.org/data/DRCCMetadata.php?Mode=Study&StudyID=ST001319&StudyType=NMR&ResultType=1
 
 
  
